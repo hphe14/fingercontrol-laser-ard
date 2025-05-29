@@ -1,5 +1,23 @@
 import cv2
 import mediapipe as mp
+import serial.tools.list_ports
+
+
+port = serial.tools.list_ports.comports()
+com_port = 'None'
+
+for i in range (0, len(port)):
+    port_name = str(port[i])
+    if 'Arduino' in port_name:
+        com_port = port_name.split(' ')[0]
+       
+if com_port != 'None':
+    ser = serial.Serial(com_port, 9600)
+    print(f'connected to {com_port}')
+else:
+    print("No Arduino Connected")
+
+
 
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
@@ -32,9 +50,12 @@ with mp_hands.Hands(min_detection_confidence = 0.8, min_tracking_confidence = 0.
                 
                 
                 #limit to 0 - 180
-                downscale_x = index_x * 180 / image_width
-                downscale_y = index_y * 180 / image_height
-                print(downscale_y)
+                downscale_x = round(index_x * 180 / image_width)
+                downscale_y = round(index_y * 180 / image_height)
+                #pos = f'{downscale_x}, {downscale_y}\n'
+                pos_x = f'{downscale_x}\n'
+                print(downscale_x)
+                ser.write(pos_x.encode())
                 
                 
                 #draw hand landmarks and connections
