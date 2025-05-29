@@ -6,7 +6,7 @@ mp_hands = mp.solutions.hands
 
 cap = cv2.VideoCapture(0)
 
-with mp_hands.Hands(min_detection_confidence = 0.8, min_tracking_confidence = 0.5) as hands:
+with mp_hands.Hands(min_detection_confidence = 0.8, min_tracking_confidence = 0.5,  max_num_hands = 1) as hands:
 
     #Cam Feed
     while cap.isOpened():
@@ -26,8 +26,16 @@ with mp_hands.Hands(min_detection_confidence = 0.8, min_tracking_confidence = 0.
                 index_x = hand.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x * image_width
                 index_y = hand.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y * image_height
                 
-                rel_x, rel_y = (index_x - midp_x), (midp_y - index_y)
-                print(rel_x)
+                #relative to middle of camera
+                #rel_x, rel_y = (index_x - midp_x), (midp_y - index_y)
+                #print(rel_x)
+                
+                
+                #limit to 0 - 180
+                downscale_x = index_x * 180 / image_width
+                downscale_y = index_y * 180 / image_height
+                print(downscale_y)
+                
                 
                 #draw hand landmarks and connections
                 mp_drawing.draw_landmarks(
