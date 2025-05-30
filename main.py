@@ -3,7 +3,12 @@ import mediapipe as mp
 import serial.tools.list_ports
 
 
+mp_drawing = mp.solutions.drawing_utils
+mp_hands = mp.solutions.hands
+cap = cv2.VideoCapture(0)
+
 port = serial.tools.list_ports.comports()
+
 com_port = 'None'
 
 for i in range (0, len(port)):
@@ -18,11 +23,6 @@ else:
     print("No Arduino Connected")
 
 
-
-mp_drawing = mp.solutions.drawing_utils
-mp_hands = mp.solutions.hands
-
-cap = cv2.VideoCapture(0)
 
 with mp_hands.Hands(min_detection_confidence = 0.8, min_tracking_confidence = 0.5,  max_num_hands = 1) as hands:
 
@@ -43,20 +43,13 @@ with mp_hands.Hands(min_detection_confidence = 0.8, min_tracking_confidence = 0.
             for hand in results.multi_hand_landmarks:
                 index_x = hand.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x * image_width
                 index_y = hand.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y * image_height
-                
-                #relative to middle of camera
-                #rel_x, rel_y = (index_x - midp_x), (midp_y - index_y)
-                #print(rel_x)
-                
-                
-                #limit to 0 - 180
-                downscale_x = round(index_x * 180 / image_width)
+                               
+                #limit to 0 - 180 
+                downscale_x = (180 - round(index_x * 180 / image_width))  #inverting so it matches movement direction of servo
                 downscale_y = round(index_y * 180 / image_height)
-                #pos = f'{downscale_x}, {downscale_y}\n'
-                pos_x = f'{downscale_x}\n'
-                print(downscale_x)
-                ser.write(pos_x.encode())
-                
+                pos = f'{downscale_x},{downscale_y}\n'
+                #print(pos)
+                ser.write(pos.encode())
                 
                 #draw hand landmarks and connections
                 mp_drawing.draw_landmarks(
