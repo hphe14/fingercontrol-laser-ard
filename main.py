@@ -8,12 +8,12 @@ mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
 
-finger_tips = {
-    "thumb" : 4,    #mp_hands.HandLandmark.THUMB_TIP
-    "index" : 8,    #mp_hands.HandLandmark.INDEX_FINGER_TIP
-    "middle" : 12,  #mp_hands.HandLandmark.MIDDLE_FINGER_TIP
-    "ring" : 16,    #mp_hands.HandLandmark.RING_FINGER_TIP
-    "pinky" : 20    #mp_hands.HandLandmark.PINKY_TIP
+fingers = {
+    "thumb" : [1,2,3,4],    
+    "index" : [5,6,7,8],    
+    "middle" : [9,10,11,12],  
+    "ring" : [13,14,15,16],    
+    "pinky" : [17,18,19,20]    
 }
 
 
@@ -21,7 +21,7 @@ cap = cv2.VideoCapture(0)
 cam_width, cam_height = 640, 480
 
 font = cv2.FONT_HERSHEY_SIMPLEX
-font_scale = 0.75
+font_scale = 0.5
 text_color = (0, 0, 255)
 text_thickness = 2
 offset = 10
@@ -29,6 +29,7 @@ offset = 10
 
 port = serial.tools.list_ports.comports()
 com_port = 'None'
+default_msg = f'{90},{90},{0}\n'
 
 for i in range (0, len(port)):
     port_name = str(port[i])
@@ -42,10 +43,10 @@ else:
     print("No Arduino Connected")
     
     
-def finger_tip_pos(hand_landmark, finger):
-    finger_tip_ind = finger_tips[finger]
-    finger_pos_x = int(hand_landmark.landmark[finger_tip_ind].x * cam_width)
-    finger_pos_y = int(hand_landmark.landmark[finger_tip_ind].y * cam_height)
+def find_finger_pos(finger: str, joint: int ):
+    current_finger = fingers[finger]
+    finger_pos_x = int(hand.landmark[current_finger[joint-1]].x * cam_width)
+    finger_pos_y = int(hand.landmark[current_finger[joint-1]].y * cam_height)
     
     text_offset_x = finger_pos_x + offset
     text_offset_y = finger_pos_y - offset
@@ -56,11 +57,41 @@ def finger_tip_pos(hand_landmark, finger):
     text_offset_y = max(text_h, min(text_offset_y, cam_height - text_h)) 
     
     
-    cv2.circle(image, (finger_pos_x,finger_pos_y), radius=6, thickness=5, color=(0,200,255))
-    cv2.putText(image, f'{(finger_pos_x,finger_pos_y)}', (text_offset_x,text_offset_y), font, font_scale, text_color, text_thickness)
+    #cv2.circle(image, (finger_pos_x,finger_pos_y), radius=6, thickness=5, color=(0,200,255))
+    #cv2.putText(image, f'{(finger_pos_x,finger_pos_y)}', (text_offset_x,text_offset_y), font, font_scale, text_color, text_thickness)
     
     return finger_pos_x,finger_pos_y
 
+
+def check_fist():
+    check_fing =[]
+
+    wrist_x = int(hand.landmark[0].x * cam_width)
+    wrist_y = int(hand.landmark[0].y * cam_height)
+    
+    #ignoring thumb because why not. Not really a fist then but close enough
+     
+    for i in list(fingers)[1:]:
+        mcp_x, mcp_y = find_finger_pos(i,1)
+        tip_x, tip_y = find_finger_pos(i,4)
+
+        if wrist_y > mcp_y:  # normal hand orientation
+            if tip_y > mcp_y:
+                check_fing.append(1)
+            else:
+                check_fing.append(0)
+        elif wrist_y < mcp_y:  #hand upside down
+            if tip_y < mcp_y:
+                check_fing.append(1)
+            else:
+                check_fing.append(0)
+           
+    fing_count = check_fing.count(1)
+    if fing_count == 4:
+        return 1
+    else:
+        return 0
+    
 
 def servo_control(x,y):
     #For servo control | limited to 0 - 180  
@@ -81,15 +112,18 @@ with mp_hands.Hands(min_detection_confidence = 0.8, min_tracking_confidence = 0.
         results = hands.process(image)
         image.flags.writeable = True
         image = cv2.cvtColor(image,cv2.COLOR_RGB2BGR)
-        
+  
         if results.multi_hand_landmarks:
             for hand in results.multi_hand_landmarks:
-
-                index_pos_x, index_pos_y = finger_tip_pos(hand, "index")
-                servo_pos_x,servo_pos_y = servo_control(index_pos_x, index_pos_y)              
-                full_message = f'{servo_pos_x},{servo_pos_y},{1}\n'
-                ser.write(full_message.encode())
                 
+                if check_fist() == 0:
+                    index_pos_x, index_pos_y = find_finger_pos('index', 4)
+                    servo_pos_x,servo_pos_y = servo_control(index_pos_x, index_pos_y)              
+                    full_message = f'{servo_pos_x},{servo_pos_y},{1}\n'
+                    ser.write(full_message.encode())  
+                else:
+                    ser.write(default_msg.encode())    
+                    
                 #draw hand landmarks and connections
                 mp_drawing.draw_landmarks(
                     image, 
@@ -97,10 +131,8 @@ with mp_hands.Hands(min_detection_confidence = 0.8, min_tracking_confidence = 0.
                     mp_hands.HAND_CONNECTIONS,
                     )
         else:
-            default_msg = f'{90},{90},{0}\n'
             ser.write(default_msg.encode())
-            print(default_msg)
-                        
+                  
         cv2.imshow('cam',image)
         if cv2.waitKey(1) == ord('q'):
             break
